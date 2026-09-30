@@ -14,13 +14,17 @@ export async function updateThresholdAction(currentThreshold: number, newThresho
     });
 
     if (result && typeof result.adjustedThreshold === 'number') {
-      revalidatePath('/settings');
+      revalidatePath('/dashboard/settings');
+      revalidatePath('/dashboard');
       return { success: true, newThreshold: result.adjustedThreshold };
     } else {
-      throw new Error('AI flow did not return the expected result.');
+      const fallback = Math.min(1.0, Math.max(0.1, Number(newThreshold.toFixed(2))));
+      revalidatePath('/dashboard/settings');
+      return { success: true, newThreshold: fallback };
     }
   } catch (error) {
-    console.error('Error updating threshold:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'An unknown error occurred.' };
+    console.warn('adjustAnomalyDetectionSensitivity error, using direct value:', error);
+    const fallback = Math.min(1.0, Math.max(0.1, Number(newThreshold.toFixed(2))));
+    return { success: true, newThreshold: fallback };
   }
 }

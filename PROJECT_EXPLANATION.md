@@ -1,87 +1,74 @@
-# AI Cloud Threat Detector - Project Overview
+# AI Cloud Threat Detector (CloudSentinel) - Project Architecture & Technical Guide
 
 ## Introduction
-**AI Cloud Threat Detector** is a cutting-edge web application designed to monitor, detect, and respond to cloud security threats in real-time. It leverages advanced AI models (Google Gemini via Genkit) to provide intelligent insights, anomaly detection, and automated incident response playbooks.
+**CloudSentinel** is an enterprise-grade cloud security intelligence and anomaly detection web application. It combines automated log stream monitoring, heuristic and AI-driven anomaly scoring, synchronized SOC dashboard metrics, interactive AI co-pilot advisory, and automated incident response playbooks.
 
-This project is built with a modern tech stack ensuring high performance, scalability, and a premium user experience.
+---
 
-## Architecture & Tech Stack
+## System Architecture
 
-### Frontend
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router) for server-side rendering and static site generation.
-- **Language**: TypeScript for type-safety and developer experience.
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) for utility-first styling, combined with `tailwindcss-animate` for smooth transitions.
-- **UI Components**: Built on [Radix UI](https://www.radix-ui.com/) primitives for accessible, unstyled components, and utilizing [Lucide React](https://lucide.dev/) for icons.
-- **Visualizations**: [Recharts](https://recharts.org/) for data-rich charts and graphs.
+### 1. Frontend Layer
+- **Framework**: Next.js 15 App Router with TypeScript for robust type safety and server actions.
+- **Design System**: Tailwind CSS with custom glassmorphism styling, Radix UI accessible primitives, and responsive 12-column grid systems.
+- **Data Visualizations**: Recharts for anomaly trend time series and incident breakdowns.
+- **Date & Time Controls**: `date-fns` and `react-day-picker` powering synchronized timeframe queries across Dashboard and AI Co-pilot.
 
-### Backend & Services
-- **Authentication**: [Firebase Authentication](https://firebase.google.com/docs/auth) for secure user management.
-- **Database**: [Firebase Cloud Firestore](https://firebase.google.com/docs/firestore) (implied usage via Firebase SDK).
-- **AI Integration**: [Google Genkit](https://firebase.google.com/docs/genkit) framework to orchestrate AI flows and interact with Google's Gemini models.
+### 2. AI Intelligence Engine (Google Genkit + Gemini)
+- **Framework**: [Google Genkit](https://firebase.google.com/docs/genkit) orchestrates modular AI flows in `src/ai/flows/`.
+- **Primary Flows**:
+  - `copilot-briefing-flow.ts`: Synthesizes live security posture briefings derived directly from dashboard event streams and alert metrics.
+  - `copilot-chat-flow.ts`: Provides interactive SOC Q&A with live telemetry context and suggested tactical queries.
+  - `summarize-and-advise-flow.ts`: Generates incident summaries and step-by-step remediation advice for individual alerts.
+  - `threat-intelligence-flow.ts`: Checks suspicious IP addresses against simulated threat feeds.
+  - `automated-response-playbook-flow.ts`: Simulates and executes automated security playbooks.
+  - `adjustable-anomaly-detection-sensitivity.ts` & `alert-feedback-flow.ts`: Implements analyst feedback loops to dynamically tune sensitivity thresholds.
 
-### Key Directories
-- `src/app`: Application routes and pages (Next.js App Router).
-- `src/components`: Reusable UI components and feature-specific widgets.
-- `src/ai`: Genkit flows and AI logic.
-- `src/lib`: Utility functions and Firebase configuration.
+### 3. Telemetry & State Synchronization
+- **Central Store**: `src/lib/mock-data.ts` manages normalized log events and alerts with consistent hydration seeding.
+- **Reactive Syncing**: Integrates `cloudsentinel-update`, `storage`, and `focus` event listeners to ensure simulated attacks from `/user-activity` instantly propagate across Dashboard, Alerts, and AI Co-pilot views in real-time.
+- **Metric Parity**: Strict calculation parity ensures that the **Total Events**, **Anomalies Detected**, **Alerts Sent**, and **High-Severity Alerts** displayed on the Dashboard precisely match the AI Co-pilot briefing data.
 
-## Key Features
+---
 
-1.  **Real-Time Dashboard**:
-    -   Visualizes security metrics and anomaly trends.
-    -   Displays recent security events with severity levels.
+## AI Co-pilot Features & Layout
 
-2.  **AI Co-pilot**:
-    -   Provides an interactive chat interface for security analysts.
-    -   Generates live briefings on the current security posture using Genkit flows.
-    -   *Note: Requires a valid Google AI API Key.*
+### Security Posture Briefing
+- Ingests real-time filtered event telemetry.
+- Highlights exact metric totals, critical active alerts, top attack signatures (e.g. `AUTH_LOGIN_SQL_INJECTION`, `PRIV_ESCALATION`, `DATA_EXPORT_USER_LIST`), and flagged attacker IPs.
+- Delivers prioritized SOC directives (quarantine, playbook automation, credential rotation).
 
-3.  **Automated Playbooks**:
-    -   Pre-defined workflows to handle common threats (e.g., "Block Known Malicious IP").
-    -   AI-driven execution and decision-making.
+### Interactive SOC Co-pilot Chat
+- Allows security analysts to ask tactical questions regarding active threats, dangerous source IPs, and mitigation strategies.
+- Includes quick-query prompt chips for rapid investigation.
 
-4.  **Mock Threat Generation**:
-    -   Built-in tools to simulate security threats (e.g., SQL Injection, CEO Fraud) for testing and demonstration purposes.
+### Dashboard Alignment & Radar
+- Mirrors the 4-column KPI cards from the Dashboard.
+- Renders the **Active Critical Alerts** table with direct AI analysis triggers.
+- Provides a live **Top Suspicious Source IPs** radar table.
 
-## Setup & Configuration
+---
+
+## Setup & Running the Application
 
 ### Prerequisites
-- Node.js (v18 or later recommended)
-- `npm` or `yarn`
+- Node.js (v18+)
+- `npm`
 
 ### Environment Variables
-The application requires a `.env` file in the root directory with the following variable:
+Create a `.env` file in the root directory:
 ```bash
 GOOGLE_API_KEY=your_google_gemini_api_key
 ```
-*Without this key, AI features (Copilot, Playbooks) will not function.*
 
-### Running the Project
+### Commands
+```bash
+# Start development server
+npm run dev
 
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+# Start Genkit developer tools (optional)
+npm run genkit:dev
 
-2.  **Run Development Server**:
-    ```bash
-    npm run dev
-    ```
-    *Starts the Next.js app on http://localhost:3000.*
-
-3.  **Run Genkit (AI) Server**:
-    ```bash
-    npm run genkit:dev
-    ```
-    *Starts the Genkit developer UI on http://localhost:4000.*
-
-4.  **Production Build**:
-    ```bash
-    npm run build
-    npm start
-    ```
-
-## Troubleshooting
-
--   **AI Features Not Working**: Ensure `GOOGLE_API_KEY` is set in `.env` and restart the server. Check the Genkit dashboard (http://localhost:4000) for flow traces.
--   **Build Errors**: If using an older Node version, ensure you are on v18+. Clear `.next` cache if issues persist (`rm -rf .next`).
+# Production build
+npm run build
+npm start
+```

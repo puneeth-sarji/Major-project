@@ -1,7 +1,7 @@
 
 'use client'
 
-import { getMockLogEvents } from "@/lib/mock-data"
+import { filterEventsByDateRange, getMockLogEvents } from "@/lib/mock-data"
 import {
   Table,
   TableBody,
@@ -21,32 +21,38 @@ import { Badge } from "@/components/ui/badge"
 import { TimeAgo } from "@/components/time-ago"
 import { useEffect, useState } from "react"
 import type { LogEvent } from "@/types"
+import type { DateRange } from "react-day-picker"
 
-export function EventsTable() {
+interface EventsTableProps {
+  dateRange?: DateRange
+}
+
+export function EventsTable({ dateRange }: EventsTableProps) {
   const [events, setEvents] = useState<LogEvent[]>([])
 
   useEffect(() => {
-    // Set initial data on mount
-    setEvents(getMockLogEvents(10));
-    
-    // This component will now re-render and get the latest events when the data changes in session storage
-    const handleStorageChange = () => {
-      setEvents(getMockLogEvents(10));
+    const updateEvents = () => {
+      const allEvents = getMockLogEvents(0);
+      const filtered = filterEventsByDateRange(allEvents, dateRange);
+      const seen = new Set<string>();
+      const unique = filtered.filter(e => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
+      setEvents(unique.slice(0, 10));
     };
-    
-    window.addEventListener('storage', handleStorageChange);
 
-    // Also check when the window gets focus, as storage events don't fire on the same tab
-     const handleFocus = () => {
-       setEvents(getMockLogEvents(10));
-     };
-    window.addEventListener('focus', handleFocus);
+    updateEvents();
+    
+    window.addEventListener('storage', updateEvents);
+    window.addEventListener('focus', updateEvents);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', updateEvents);
+      window.removeEventListener('focus', updateEvents);
     };
-  }, []);
+  }, [dateRange]);
 
   return (
     <Card>
@@ -66,22 +72,30 @@ export function EventsTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {events.map((event) => (
-              <TableRow key={event.id}>
-                <TableCell>
-                  <div className="font-medium font-code">{event.action}</div>
-                  <div className="text-sm text-muted-foreground md:hidden">{event.sourceIp}</div>
+            {events.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  No log events recorded in this date range.
                 </TableCell>
-                <TableCell className="hidden sm:table-cell">{event.sourceIp}</TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge className="text-xs" variant={event.status === "Success" ? "secondary" : "destructive"}>
-                    {event.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">{event.anomalyScore.toFixed(2)}</TableCell>
-                <TableCell className="text-right"><TimeAgo date={event.timestamp} /></TableCell>
               </TableRow>
-            ))}
+            ) : (
+              events.map((event) => (
+                <TableRow key={event.id}>
+                  <TableCell>
+                    <div className="font-medium font-code">{event.action}</div>
+                    <div className="text-sm text-muted-foreground md:hidden">{event.sourceIp}</div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">{event.sourceIp}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge className="text-xs" variant={event.status === "Success" ? "secondary" : "destructive"}>
+                      {event.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">{event.anomalyScore.toFixed(2)}</TableCell>
+                  <TableCell className="text-right"><TimeAgo date={event.timestamp} /></TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>

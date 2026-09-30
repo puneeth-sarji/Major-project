@@ -11,3 +11,4 @@ import '@/ai/flows/automated-response-playbook-flow.ts';
 import '@/ai/flows/summarize-and-advise-flow.ts';
 import '@/ai/flows/alert-feedback-flow.ts';
 import '@/ai/flows/copilot-briefing-flow.ts';
+import '@/ai/flows/copilot-chat-flow.ts';

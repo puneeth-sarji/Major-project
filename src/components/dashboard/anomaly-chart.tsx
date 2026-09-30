@@ -9,6 +9,9 @@ import {
   YAxis,
 } from "recharts"
 
+import { addDays, format, startOfDay } from "date-fns"
+import type { DateRange } from "react-day-picker"
+
 import {
   Card,
   CardContent,
@@ -22,8 +25,9 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { getMockLogEvents } from "@/lib/mock-data"
-import { useMemo } from "react"
+import { filterEventsByDateRange, getMockLogEvents } from "@/lib/mock-data"
+import { useEffect, useMemo, useState } from "react"
+import type { LogEvent } from "@/types"
 
 const chartConfig = {
   score: {
@@ -32,36 +36,82 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function AnomalyChart() {
+interface AnomalyChartProps {
+  dateRange?: DateRange
+}
+
+export function AnomalyChart({ dateRange }: AnomalyChartProps) {
+  const [events, setEvents] = useState<LogEvent[]>([])
+
+  useEffect(() => {
+    const updateEvents = () => {
+      setEvents(getMockLogEvents(0));
+    };
+    updateEvents();
+
+    window.addEventListener('storage', updateEvents);
+    window.addEventListener('focus', updateEvents);
+    return () => {
+      window.removeEventListener('storage', updateEvents);
+      window.removeEventListener('focus', updateEvents);
+    };
+  }, []);
 
   const chartData = useMemo(() => {
-    const events = getMockLogEvents(0);
+    const filteredEvents = filterEventsByDateRange(events, dateRange);
     const dailyScores: Record<string, number[]> = {};
 
-    events.forEach(event => {
-        const date = new Date(event.timestamp).toISOString().split('T')[0];
-        if (!dailyScores[date]) {
-            dailyScores[date] = [];
-        }
-        dailyScores[date].push(event.anomalyScore);
+    filteredEvents.forEach(event => {
+      const dateStr = new Date(event.timestamp).toISOString().split('T')[0];
+      if (!dailyScores[dateStr]) {
+        dailyScores[dateStr] = [];
+      }
+      dailyScores[dateStr].push(event.anomalyScore);
     });
 
-    return Object.entries(dailyScores)
-        .map(([date, scores]) => ({
-            date,
-            score: Math.max(...scores),
-        }))
-        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(-30); // Get last 30 days
-}, []);
+    if (dateRange?.from) {
+      const days: { date: string; score: number }[] = [];
+      let curr = startOfDay(dateRange.from);
+      const end = startOfDay(dateRange.to || dateRange.from);
+      
+      if (curr <= end) {
+        while (curr <= end) {
+          const dateStr = curr.toISOString().split('T')[0];
+          const scores = dailyScores[dateStr];
+          days.push({
+            date: dateStr,
+            score: scores && scores.length > 0 ? Math.max(...scores) : 0,
+          });
+          curr = addDays(curr, 1);
+        }
+        return days;
+      }
+    }
 
+    return Object.entries(dailyScores)
+      .map(([date, scores]) => ({
+        date,
+        score: Math.max(...scores),
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [events, dateRange]);
+
+  const dateDescription = useMemo(() => {
+    if (dateRange?.from && dateRange?.to) {
+      return `Showing max daily anomaly scores from ${format(dateRange.from, "LLL dd, y")} to ${format(dateRange.to, "LLL dd, y")}.`;
+    }
+    if (dateRange?.from) {
+      return `Showing max daily anomaly scores for ${format(dateRange.from, "LLL dd, y")}.`;
+    }
+    return "Showing max daily anomaly scores for the selected period.";
+  }, [dateRange]);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Anomaly Score Trend</CardTitle>
         <CardDescription>
-          Showing max daily anomaly scores over the last 30 days.
+          {dateDescription}
         </CardDescription>
       </CardHeader>
       <CardContent>

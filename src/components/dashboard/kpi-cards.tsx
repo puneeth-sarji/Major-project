@@ -8,32 +8,50 @@ import {
     CardTitle,
   } from "@/components/ui/card"
   import { Server, ShieldAlert, Bell, Activity } from "lucide-react"
-  import { GridPattern } from "@/components/grid-pattern"
-import { getMockAlerts, getMockLogEvents } from "@/lib/mock-data";
+import { GridPattern } from "@/components/grid-pattern"
+import { getMockAlerts, getMockLogEvents, filterEventsByDateRange } from "@/lib/mock-data";
 import { useEffect, useState } from "react";
-  
-  export function KpiCards() {
-    const [kpiData, setKpiData] = useState([
-        { title: "Total Events", value: "0", icon: Server },
-        { title: "Anomalies Detected", value: "0", icon: Activity },
-        { title: "Alerts Sent", value: "0", icon: Bell },
-        { title: "High-Severity Alerts", value: "0", icon: ShieldAlert },
-    ]);
+import type { DateRange } from "react-day-picker";
 
-    useEffect(() => {
-        const allEvents = getMockLogEvents(0);
-        const allAlerts = getMockAlerts(allEvents);
+interface KpiCardsProps {
+  dateRange?: DateRange;
+}
 
-        const anomalies = allEvents.filter(e => e.anomalyScore > 0.7);
-        const highSeverity = allAlerts.filter(a => a.severity === 'High');
-        
-        setKpiData([
-            { title: "Total Events", value: allEvents.length.toLocaleString(), icon: Server },
-            { title: "Anomalies Detected", value: anomalies.length.toLocaleString(), icon: Activity },
-            { title: "Alerts Sent", value: allAlerts.length.toLocaleString(), icon: Bell },
-            { title: "High-Severity Alerts", value: highSeverity.length.toLocaleString(), icon: ShieldAlert },
-        ]);
-    }, []);
+export function KpiCards({ dateRange }: KpiCardsProps) {
+  const [kpiData, setKpiData] = useState([
+      { title: "Total Events", value: "0", icon: Server },
+      { title: "Anomalies Detected", value: "0", icon: Activity },
+      { title: "Alerts Sent", value: "0", icon: Bell },
+      { title: "High-Severity Alerts", value: "0", icon: ShieldAlert },
+  ]);
+
+  useEffect(() => {
+      const updateData = () => {
+          const allEvents = getMockLogEvents(0);
+          const filteredEvents = filterEventsByDateRange(allEvents, dateRange);
+          const allAlerts = getMockAlerts(filteredEvents);
+
+          const anomalies = filteredEvents.filter(e => e.anomalyScore > 0.7);
+          const highSeverity = allAlerts.filter(a => a.severity === 'High');
+          
+          setKpiData([
+              { title: "Total Events", value: filteredEvents.length.toLocaleString(), icon: Server },
+              { title: "Anomalies Detected", value: anomalies.length.toLocaleString(), icon: Activity },
+              { title: "Alerts Sent", value: allAlerts.length.toLocaleString(), icon: Bell },
+              { title: "High-Severity Alerts", value: highSeverity.length.toLocaleString(), icon: ShieldAlert },
+          ]);
+      };
+
+      updateData();
+
+      const handleStorageChange = () => updateData();
+      window.addEventListener('storage', handleStorageChange);
+      window.addEventListener('focus', handleStorageChange);
+      return () => {
+          window.removeEventListener('storage', handleStorageChange);
+          window.removeEventListener('focus', handleStorageChange);
+      };
+  }, [dateRange]);
   
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

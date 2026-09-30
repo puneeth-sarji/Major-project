@@ -55,12 +55,18 @@ const adjustAnomalyDetectionSensitivityFlow = ai.defineFlow(
       adjustedThreshold = 1;
     }
 
-    const {output} = await prompt({
-      ...input,
-      adjustedThreshold,
-    });
+    try {
+      const {output} = await prompt(input);
+      if (output?.adjustedThreshold !== undefined) {
+        return {
+          adjustedThreshold: Math.min(1, Math.max(0, output.adjustedThreshold)),
+        };
+      }
+    } catch (e) {
+      console.warn('AI sensitivity flow fallback to arithmetic computation:', e);
+    }
     return {
-      adjustedThreshold: output!.adjustedThreshold,
+      adjustedThreshold: Number(adjustedThreshold.toFixed(2)),
     };
   }
 );

@@ -1,14 +1,19 @@
-# AI Cloud Threat Detector
+# AI Cloud Threat Detector (CloudSentinel)
 
 ## Overview
-AI Cloud Threat Detector is a web application designed to provide real-time anomaly detection, threat intelligence, and automated response playbooks for cloud security. The application leverages AI-driven insights to enhance security monitoring and response capabilities.
+**CloudSentinel** (AI Cloud Threat Detector) is a high-performance web application designed to provide real-time anomaly detection, threat intelligence, automated response playbooks, and AI-driven SOC co-pilot capabilities for cloud infrastructure. The application leverages Google Gemini via Firebase GenKit to deliver continuous security monitoring and incident response workflows.
 
-## Features
-- **Dashboard**: Provides an overview of security metrics, anomaly trends, and recent events.
-- **Alerts**: Displays real-time alerts with severity levels, timestamps, and AI analysis.
-- **AI Co-pilot**: Offers AI-driven recommendations and insights for threat mitigation.
-- **Playbooks**: Automates response workflows for common security incidents.
-- **Settings**: Allows customization of application preferences.
+## Key Features
+- **Security Dashboard**: Real-time overview of security metrics, anomaly trends, recent events, and severity distributions.
+- **Security Alerts**: Real-time triage console for correlated alerts with severity tagging, log trace links, and individual AI incident analysis.
+- **AI Co-pilot**:
+  - **Live Security Briefing**: Generates real-time narrative security briefings directly derived from and matching live Dashboard telemetry and date range filters.
+  - **Interactive SOC Chat**: Real-time conversational agent capable of answering threat intelligence questions, recommending immediate containment strategies, and explaining anomalies.
+  - **Live Radar**: Surfaces top attacking IPs and recurring anomaly signatures with quick-analysis triggers.
+  - **Resilient AI Flow**: Includes dynamic fallback intelligence ensuring 100% data integrity even during network or quota constraints.
+- **Automated Playbooks**: Pre-defined and AI-assisted workflows to automate incident containment (e.g., *Block Known Malicious IP*, *Isolate Suspicious Instance*).
+- **Threat Simulation**: Built-in User Activity generator to simulate attack vectors (SQL Injection, Privilege Escalation, Data Exfiltration, Tampering) with instant multi-tab cross-session state synchronization.
+- **Settings & Sensitivity**: Dynamic anomaly threshold tuning with real-time feedback loops.
 
 ## Project Structure
 ```
@@ -21,9 +26,9 @@ cloud-threat-detection/
 ├── postcss.config.mjs
 ├── tailwind.config.ts
 ├── tsconfig.json
+├── PROJECT_EXPLANATION.md
+├── README.md
 ├── public/
-│   ├── next.svg
-│   ├── vercel.svg
 ├── src/
 │   ├── ai/
 │   │   ├── dev.ts
@@ -34,6 +39,7 @@ cloud-threat-detection/
 │   │   │   ├── alert-feedback-flow.ts
 │   │   │   ├── automated-response-playbook-flow.ts
 │   │   │   ├── copilot-briefing-flow.ts
+│   │   │   ├── copilot-chat-flow.ts
 │   │   │   ├── model-based-anomaly-scoring.ts
 │   │   │   ├── real-time-anomaly-alerting.ts
 │   │   │   ├── summarize-and-advise-flow.ts
@@ -42,18 +48,6 @@ cloud-threat-detection/
 │   │   ├── globals.css
 │   │   ├── layout.tsx
 │   │   ├── page.tsx
-│   │   ├── (dashboard)/
-│   │   │   ├── actions.ts
-│   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx
-│   │   │   ├── alerts/
-│   │   │   │   ├── page.tsx
-│   │   │   ├── copilot/
-│   │   │   │   ├── page.tsx
-│   │   │   ├── playbooks/
-│   │   │   │   ├── page.tsx
-│   │   │   ├── settings/
-│   │   │   │   ├── page.tsx
 │   │   ├── dashboard/
 │   │   │   ├── actions.ts
 │   │   │   ├── layout.tsx
@@ -65,147 +59,75 @@ cloud-threat-detection/
 │   │   │   │   ├── actions.ts
 │   │   │   │   ├── page.tsx
 │   │   │   ├── playbooks/
+│   │   │   │   ├── page.tsx
 │   │   │   ├── settings/
+│   │   │   │   ├── page.tsx
 │   │   ├── login/
 │   │   │   ├── page.tsx
 │   │   ├── user-activity/
 │   │   │   ├── page.tsx
 │   ├── components/
-│   │   ├── DarkVeil.css
-│   │   ├── DarkVeil.tsx
 │   │   ├── date-range-picker.tsx
-│   │   ├── DecryptedText.jsx
-│   │   ├── DotGrid.css
-│   │   ├── DotGrid.jsx
-│   │   ├── DotGrid.tsx
 │   │   ├── grid-pattern.tsx
-│   │   ├── LetterGlitch.tsx
-│   │   ├── LightRays.css
-│   │   ├── LightRays.jsx
 │   │   ├── logo.tsx
-│   │   ├── PixelBlast.css
-│   │   ├── PixelBlast.tsx
-│   │   ├── Prism.css
-│   │   ├── Prism.tsx
 │   │   ├── theme-provider.tsx
 │   │   ├── theme-toggle.tsx
 │   │   ├── time-ago.tsx
 │   │   ├── dashboard/
 │   │   │   ├── anomaly-chart.tsx
-│   │   │   ├── anomaly-chat.tsx
 │   │   │   ├── events-table.tsx
 │   │   │   ├── kpi-cards.tsx
+│   │   │   ├── recent-alerts.tsx
 │   │   ├── ui/
-│   │   │   ├── accordion.tsx
-│   │   │   ├── alert-dialog.tsx
-│   │   │   ├── alert.tsx
-│   │   │   ├── avatar.tsx
-│   │   │   ├── badge.tsx
-│   │   │   ├── button.tsx
-│   │   │   ├── calendar.tsx
-│   │   │   ├── card.tsx
-│   │   │   ├── carousel.tsx
-│   │   │   ├── chart.tsx
-│   │   │   ├── checkbox.tsx
-│   │   │   ├── collapsible.tsx
-│   │   │   ├── dialog.tsx
-│   │   │   ├── dropdown-menu.tsx
-│   │   │   ├── form.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── label.tsx
-│   │   │   ├── menubar.tsx
-│   │   │   ├── popover.tsx
-│   │   │   ├── progress.tsx
-│   │   │   ├── radio-group.tsx
-│   │   │   ├── scroll-area.tsx
-│   │   │   ├── select.tsx
-│   │   │   ├── separator.tsx
-│   │   │   ├── sheet.tsx
-│   │   │   ├── sidebar.tsx
-│   │   │   ├── skeleton.tsx
-│   │   │   ├── slider.tsx
-│   │   │   ├── switch.tsx
-│   │   │   ├── table.tsx
-│   │   │   ├── tabs.tsx
-│   │   │   ├── textarea.tsx
-│   │   │   ├── toast.tsx
-│   │   │   ├── toaster.tsx
-│   │   │   ├── tooltip.tsx
 │   ├── hooks/
 │   │   ├── use-mobile.tsx
 │   │   ├── use-toast.ts
 │   ├── lib/
 │   │   ├── firebase.ts
-│   │   ├── mock-analysis.ts
 │   │   ├── mock-data.ts
 │   │   ├── utils.ts
 │   ├── types/
 │   │   ├── index.ts
 ```
 
-## Installation
+## Setup & Installation
 
-For a detailed project overview and architecture explanation, please refer to [PROJECT_EXPLANATION.md](./PROJECT_EXPLANATION.md).
-
-1. Clone the repository:
+1. **Clone the repository**:
    ```bash
    git clone https://github.com/puneeth-sarji/Major-project.git
-   ```
-2. Navigate to the project directory:
-   ```bash
    cd Major-project
    ```
-3. Install dependencies:
+
+2. **Install dependencies**:
    ```bash
    npm install
    ```
-4. Configure Environment Variables:
-   Create a `.env` file in the root directory and add your Google AI API Key:
+
+3. **Configure Environment Variables**:
+   Create a `.env` file in the root directory:
    ```bash
    GOOGLE_API_KEY=your_google_gemini_api_key
    ```
-   *Note: AI features (Copilot, Playbooks) require a valid API key.*
+   *Note: AI features utilize Google Gemini with fallback intelligence.*
 
-## Usage
-
-1. Start the development server:
+4. **Start the Development Server**:
    ```bash
    npm run dev
    ```
-2. Open the application in your browser at `http://localhost:3000`.
+   Open `http://localhost:3000` in your browser.
 
-3. Start the Genkit (AI) server:
+5. **Start the Genkit Developer Console (Optional)**:
    ```bash
    npm run genkit:dev
    ```
-   *The Genkit Developer UI will be available at http://localhost:4000.*
+   Accessible at `http://localhost:4000`.
 
-
-## Technologies Used
-- **Next.js**: React framework for server-side rendering and static site generation.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
-- **Recharts**: Library for building charts and visualizations.
-- **Firebase**: Backend services for authentication and data storage.
-
-## Contributing
-Contributions are welcome! Please follow these steps:
-1. Fork the repository.
-2. Create a new branch:
-   ```bash
-   git checkout -b feature-name
-   ```
-3. Make your changes and commit them:
-   ```bash
-   git commit -m "Add feature-name"
-   ```
-4. Push to your forked repository:
-   ```bash
-   git push origin feature-name
-   ```
-5. Create a pull request.
+## Architecture & Technologies
+- **Frontend Framework**: Next.js 15 (App Router) + React 18
+- **Styling & Design System**: Tailwind CSS, Radix UI Primitives, Lucide Icons, Glassmorphism backdrop filters
+- **Visual Effects & Visualizations**: Recharts, Three.js / OGL ambient shaders
+- **AI Framework**: Google Genkit with Gemini models (`googleai/gemini-2.5-flash`)
+- **State & Synchronization**: Event-driven client-server synchronization across tabs with custom storage dispatchers
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## Contact
-For any inquiries or support, please contact (mailto:puneethsarji@gmail.com).
+MIT License.

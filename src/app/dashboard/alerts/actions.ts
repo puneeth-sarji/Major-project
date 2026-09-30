@@ -23,19 +23,31 @@ export async function checkThreatIntelligence(ipAddress: string) {
 export async function getIncidentAnalysis(
     alert: Alert, 
 ) {
-    // This is now using mock data for speed, as requested.
-    const severityAnalyses = MOCK_ANALYSIS[alert.severity];
+    const severityAnalyses = MOCK_ANALYSIS[alert.severity] || MOCK_ANALYSIS['High'];
     const randomAnalysis = severityAnalyses[Math.floor(Math.random() * severityAnalyses.length)];
     
-    // Simulate a short network delay for realism
     await new Promise(resolve => setTimeout(resolve, 250));
+
+    let action = 'Suspicious Activity';
+    if (alert.description.includes('SQL Injection')) {
+      action = 'SQL Injection Attack';
+    } else if (alert.description.includes('Privilege escalation')) {
+      action = 'Privilege Escalation Attempt';
+    } else if (alert.description.includes('Data Exfiltration')) {
+      action = 'Unauthorized Data Exfiltration';
+    } else if (alert.description.includes('disable security logging')) {
+      action = 'Security Logging Tampering';
+    } else {
+      const match = alert.description.match(/(?:detected:\s*|for\s*)([A-Za-z0-9_]+)/i);
+      if (match) action = match[1];
+    }
 
     return { 
         success: true, 
         analysis: { 
             incidentSummary: randomAnalysis
-                .replace('{{sourceIp}}', alert.sourceIp)
-                .replace('{{action}}', alert.description.split(' ')[4] || 'activity') // a bit of a hack to get the action
+                .replaceAll('{{sourceIp}}', alert.sourceIp)
+                .replaceAll('{{action}}', action)
         } 
     };
 }
