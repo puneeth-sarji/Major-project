@@ -16,19 +16,35 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { updateThresholdAction } from './actions';
-import { 
-  Loader2, 
-  Sliders, 
-  Bell, 
-  Send, 
-  ShieldAlert, 
-  Database, 
-  RotateCcw, 
-  CheckCircle2, 
-  Mail, 
-  Slack, 
-  Cloud 
+import { updateThresholdAction, verifyAwsConnectionAction } from './actions';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Loader2,
+  Sliders,
+  Bell,
+  Send,
+  ShieldAlert,
+  Database,
+  RotateCcw,
+  CheckCircle2,
+  Mail,
+  Slack,
+  Cloud,
+  Key,
+  Copy,
+  Check,
+  ShieldCheck,
+  HelpCircle,
+  Zap,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -53,6 +69,22 @@ export default function SettingsPage() {
   const [autoQuarantine, setAutoQuarantine] = useState(true);
   const [autoBlockMaliciousIP, setAutoBlockMaliciousIP] = useState(true);
   const [requireHumanApproval, setRequireHumanApproval] = useState(false);
+
+  // AWS Real-Time Monitoring & Telemetry Ingestion State
+  const [awsConnected, setAwsConnected] = useState(false);
+  const [awsRegion, setAwsRegion] = useState('us-east-1');
+  const [awsAuthMode, setAwsAuthMode] = useState<'webhook' | 'keys' | 'role'>('webhook');
+  const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
+  const [awsSecretKey, setAwsSecretKey] = useState('');
+  const [awsRoleArn, setAwsRoleArn] = useState('');
+  const [awsWebhookSecret, setAwsWebhookSecret] = useState('sentinel_sec_9941a');
+  const [awsCloudTrailEnabled, setAwsCloudTrailEnabled] = useState(true);
+  const [awsGuardDutyEnabled, setAwsGuardDutyEnabled] = useState(true);
+  const [awsWafEnabled, setAwsWafEnabled] = useState(true);
+  const [awsVpcFlowEnabled, setAwsVpcFlowEnabled] = useState(false);
+  const [isTestingAws, setIsTestingAws] = useState(false);
+  const [isSetupGuideOpen, setIsSetupGuideOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Testing States
   const [testingChannel, setTestingChannel] = useState<string | null>(null);
@@ -92,6 +124,27 @@ export default function SettingsPage() {
 
       const storedApproval = localStorage.getItem('requireHumanApproval');
       if (storedApproval !== null) setRequireHumanApproval(storedApproval === 'true');
+
+      // Load AWS Configuration
+      const storedAws = localStorage.getItem('cloud_sentinel_aws_config');
+      if (storedAws) {
+        try {
+          const parsed = JSON.parse(storedAws);
+          if (parsed.connected !== undefined) setAwsConnected(parsed.connected);
+          if (parsed.region) setAwsRegion(parsed.region);
+          if (parsed.authMode) setAwsAuthMode(parsed.authMode);
+          if (parsed.accessKeyId) setAwsAccessKeyId(parsed.accessKeyId);
+          if (parsed.secretKey) setAwsSecretKey(parsed.secretKey);
+          if (parsed.roleArn) setAwsRoleArn(parsed.roleArn);
+          if (parsed.webhookSecret) setAwsWebhookSecret(parsed.webhookSecret);
+          if (parsed.cloudTrail !== undefined) setAwsCloudTrailEnabled(parsed.cloudTrail);
+          if (parsed.guardDuty !== undefined) setAwsGuardDutyEnabled(parsed.guardDuty);
+          if (parsed.waf !== undefined) setAwsWafEnabled(parsed.waf);
+          if (parsed.vpcFlow !== undefined) setAwsVpcFlowEnabled(parsed.vpcFlow);
+        } catch (e) {
+          console.error('Error loading stored AWS config:', e);
+        }
+      }
     } catch (err) {
       console.error('Error loading settings from localStorage:', err);
     }
@@ -150,6 +203,78 @@ export default function SettingsPage() {
         description: "Response policies updated successfully.",
       });
     });
+  };
+
+  const handleSaveAws = (connectState = true) => {
+    const config = {
+      connected: connectState,
+      region: awsRegion,
+      authMode: awsAuthMode,
+      accessKeyId: awsAccessKeyId,
+      secretKey: awsSecretKey ? '••••••••••••••••' : '',
+      roleArn: awsRoleArn,
+      webhookSecret: awsWebhookSecret,
+      cloudTrail: awsCloudTrailEnabled,
+      guardDuty: awsGuardDutyEnabled,
+      waf: awsWafEnabled,
+      vpcFlow: awsVpcFlowEnabled,
+      lastUpdated: new Date().toISOString(),
+    };
+    setAwsConnected(connectState);
+    localStorage.setItem('cloud_sentinel_aws_config', JSON.stringify(config));
+    window.dispatchEvent(new Event('storage'));
+
+    toast({
+      title: connectState ? "AWS Environment Connected" : "AWS Environment Disconnected",
+      description: connectState
+        ? `Real-time monitoring configured for region ${awsRegion}. Telemetry pipelines are active.`
+        : "AWS cloud connection disabled.",
+    });
+  };
+
+  const handleTestAws = async () => {
+    setIsTestingAws(true);
+    try {
+      const res = await verifyAwsConnectionAction({
+        region: awsRegion,
+        authMode: awsAuthMode,
+        accessKeyId: awsAccessKeyId,
+        roleArn: awsRoleArn,
+      });
+
+      if (res.success) {
+        toast({
+          title: "AWS Connection Verified",
+          description: res.message,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "AWS Verification Failed",
+          description: res.error,
+        });
+      }
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Handshake Failed",
+        description: "Could not establish connection to AWS security stream.",
+      });
+    } finally {
+      setIsTestingAws(false);
+    }
+  };
+
+  const handleCopy = (text: string, fieldName: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+      toast({
+        title: "Copied to Clipboard",
+        description: `${fieldName} copied.`,
+      });
+    }
   };
 
   const handleTestChannel = (channel: 'slack' | 'sns' | 'email') => {
@@ -224,6 +349,297 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
+          {/* Premier Card: AWS Cloud Connection & Real-Time Monitoring */}
+          <Card className="md:col-span-2 bg-background/90 backdrop-blur-md border border-amber-500/30 shadow-md">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <Cloud className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg font-bold">AWS Real-Time Cloud Monitoring</CardTitle>
+                      <Badge
+                        variant={awsConnected ? "default" : "outline"}
+                        className={awsConnected ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 gap-1.5 font-semibold text-xs py-0.5" : "text-xs py-0.5"}
+                      >
+                        {awsConnected && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
+                        {awsConnected ? 'Connected (Live Stream Active)' : 'Not Connected'}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs mt-0.5">
+                      Ingest AWS CloudTrail, GuardDuty, and WAF security telemetry directly into Cloud-Sentinel in real time.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSetupGuideOpen(true)}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-primary" />
+                  AWS Setup Guide
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-5 pt-4">
+              {/* Integration Method Tabs */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  1. Ingestion Architecture Mode
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant={awsAuthMode === 'webhook' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start gap-2 h-9 text-xs"
+                    onClick={() => setAwsAuthMode('webhook')}
+                  >
+                    <Zap className="h-3.5 w-3.5 text-amber-300" />
+                    EventBridge Webhook
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={awsAuthMode === 'keys' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start gap-2 h-9 text-xs"
+                    onClick={() => setAwsAuthMode('keys')}
+                  >
+                    <Key className="h-3.5 w-3.5" />
+                    IAM Access Keys
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={awsAuthMode === 'role' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start gap-2 h-9 text-xs"
+                    onClick={() => setAwsAuthMode('role')}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Cross-Account Role
+                  </Button>
+                </div>
+              </div>
+
+              {/* Mode-Specific Configuration Inputs */}
+              {awsAuthMode === 'webhook' && (
+                <div className="p-3.5 rounded-lg bg-muted/40 border space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold flex items-center justify-between">
+                      <span>Real-Time Webhook Ingestion URL (POST)</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[11px] gap-1 px-2"
+                        onClick={() => handleCopy(`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/telemetry/ingest`, 'Webhook URL')}
+                      >
+                        {copiedField === 'Webhook URL' ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                        {copiedField === 'Webhook URL' ? 'Copied' : 'Copy'}
+                      </Button>
+                    </Label>
+                    <Input
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/telemetry/ingest`}
+                      className="text-xs font-mono bg-background/90"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Point your Amazon EventBridge API Destination or Lambda forwarder to this endpoint.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center justify-between">
+                        <span>Secret Ingestion Key (Header: <code>x-sentinel-key</code>)</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[11px] gap-1 px-2"
+                          onClick={() => handleCopy(awsWebhookSecret, 'Secret Key')}
+                        >
+                          {copiedField === 'Secret Key' ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                          {copiedField === 'Secret Key' ? 'Copied' : 'Copy'}
+                        </Button>
+                      </Label>
+                      <Input
+                        value={awsWebhookSecret}
+                        onChange={(e) => setAwsWebhookSecret(e.target.value)}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Primary AWS Region</Label>
+                      <Input
+                        value={awsRegion}
+                        onChange={(e) => setAwsRegion(e.target.value)}
+                        placeholder="e.g. us-east-1"
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {awsAuthMode === 'keys' && (
+                <div className="p-3.5 rounded-lg bg-muted/40 border space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">AWS Access Key ID</Label>
+                      <Input
+                        placeholder="AKIAIOSFODNN7EXAMPLE"
+                        value={awsAccessKeyId}
+                        onChange={(e) => setAwsAccessKeyId(e.target.value)}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">AWS Secret Access Key</Label>
+                      <Input
+                        type="password"
+                        placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                        value={awsSecretKey}
+                        onChange={(e) => setAwsSecretKey(e.target.value)}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Target Region</Label>
+                    <Input
+                      value={awsRegion}
+                      onChange={(e) => setAwsRegion(e.target.value)}
+                      placeholder="us-east-1"
+                      className="text-xs font-mono sm:w-1/2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {awsAuthMode === 'role' && (
+                <div className="p-3.5 rounded-lg bg-muted/40 border space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cross-Account IAM Role ARN</Label>
+                    <Input
+                      placeholder="arn:aws:iam::123456789012:role/CloudSentinelMonitoringRole"
+                      value={awsRoleArn}
+                      onChange={(e) => setAwsRoleArn(e.target.value)}
+                      className="text-xs font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Attach the <code>SecurityAudit</code> managed policy to this IAM role.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">AWS Region</Label>
+                    <Input
+                      value={awsRegion}
+                      onChange={(e) => setAwsRegion(e.target.value)}
+                      placeholder="us-east-1"
+                      className="text-xs font-mono sm:w-1/2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Monitored AWS Security Pipelines */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  2. Monitored Security Streams
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <div className="flex items-center justify-between p-2.5 rounded-md border bg-muted/20">
+                    <div className="space-y-0.5 pr-2">
+                      <p className="text-xs font-medium">AWS CloudTrail</p>
+                      <p className="text-[10px] text-muted-foreground">IAM & logins</p>
+                    </div>
+                    <Switch
+                      checked={awsCloudTrailEnabled}
+                      onCheckedChange={setAwsCloudTrailEnabled}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-md border bg-muted/20">
+                    <div className="space-y-0.5 pr-2">
+                      <p className="text-xs font-medium">AWS GuardDuty</p>
+                      <p className="text-[10px] text-muted-foreground">Threat findings</p>
+                    </div>
+                    <Switch
+                      checked={awsGuardDutyEnabled}
+                      onCheckedChange={setAwsGuardDutyEnabled}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-md border bg-muted/20">
+                    <div className="space-y-0.5 pr-2">
+                      <p className="text-xs font-medium">AWS WAF (SQLi)</p>
+                      <p className="text-[10px] text-muted-foreground">Web ACL blocks</p>
+                    </div>
+                    <Switch
+                      checked={awsWafEnabled}
+                      onCheckedChange={setAwsWafEnabled}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-md border bg-muted/20">
+                    <div className="space-y-0.5 pr-2">
+                      <p className="text-xs font-medium">VPC Flow Logs</p>
+                      <p className="text-[10px] text-muted-foreground">Network flows</p>
+                    </div>
+                    <Switch
+                      checked={awsVpcFlowEnabled}
+                      onCheckedChange={setAwsVpcFlowEnabled}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="border-t px-6 py-3 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                <span>Zero-storage encryption; telemetry ingested directly into live SOC session.</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestAws}
+                  disabled={isTestingAws}
+                  className="gap-1.5 text-xs h-8"
+                >
+                  {isTestingAws ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Test Handshake
+                </Button>
+
+                {awsConnected ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleSaveAws(false)}
+                    className="gap-1.5 text-xs h-8"
+                  >
+                    Disconnect AWS
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveAws(true)}
+                    className="gap-1.5 text-xs h-8 shadow-sm"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Save & Connect AWS
+                  </Button>
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+
           {/* Card 1: Anomaly Detection Model */}
           <Card className="bg-background/85 backdrop-blur-md border shadow-sm flex flex-col justify-between">
             <CardHeader className="pb-3">

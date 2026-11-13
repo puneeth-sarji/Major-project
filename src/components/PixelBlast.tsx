@@ -143,7 +143,7 @@ const createLiquidEffect = (texture: THREE.Texture, opts?: LiquidEffectOptions) 
     }
     `;
   return new Effect('LiquidEffect', fragment, {
-    uniforms: new Map([
+    uniforms: new Map<string, THREE.Uniform<any>>([
       ['uTexture', new THREE.Uniform(texture)],
       ['uStrength', new THREE.Uniform(opts?.strength ?? 0.025)],
       ['uTime', new THREE.Uniform(0)],
@@ -362,13 +362,13 @@ const PixelBlast = ({
     if (!container) return;
     speedRef.current = speed;
 
-    const needsReinitKeys = ['antialias', 'liquid', 'noiseAmount'];
+    const needsReinitKeys = ['antialias', 'liquid', 'noiseAmount'] as const;
     const cfg = { antialias, liquid, noiseAmount };
     let mustReinit = false;
     if (!threeRef.current) mustReinit = true;
     else if (prevConfigRef.current) {
       for (const k of needsReinitKeys) {
-        if (prevConfigRef.current[k] !== cfg[k]) {
+        if ((prevConfigRef.current as any)[k] !== cfg[k]) {
           mustReinit = true;
           break;
         }
@@ -464,7 +464,7 @@ const PixelBlast = ({
       };
       const timeOffset = randomFloat() * 1000;
 
-      let composer: EffectComposer;
+      let composer: EffectComposer | undefined;
       let touch: ReturnType<typeof createTouchTexture> | undefined;
       let liquidEffect: Effect | undefined;
 
@@ -504,7 +504,7 @@ const PixelBlast = ({
         composer.addPass(noisePass);
       }
 
-      if (composer!) composer.setSize(renderer.domElement.width, renderer.domElement.height);
+      if (composer) composer.setSize(renderer.domElement.width, renderer.domElement.height);
 
       const mapToPixels = (e: PointerEvent) => {
         const rect = renderer.domElement.getBoundingClientRect();
@@ -548,7 +548,10 @@ const PixelBlast = ({
           return;
         }
         uniforms.uTime.value = timeOffset + clock.getElapsedTime() * speedRef.current;
-        if (liquidEffect) liquidEffect.uniforms.get('uTime').value = uniforms.uTime.value;
+        if (liquidEffect) {
+          const uTime = liquidEffect.uniforms?.get('uTime');
+          if (uTime) uTime.value = uniforms.uTime.value;
+        }
         if (composer) {
           if (touch) touch.update();
           composer.passes.forEach(p => {

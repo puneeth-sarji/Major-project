@@ -4,6 +4,7 @@ import type { LogEvent, Alert } from '@/types';
 
 import { startOfDay, endOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
+import { evaluateRealtimePlaybookTriggers } from '@/lib/playbook-store';
 
 // Seeding faker ensures that the same mock data is generated on the server and client, preventing hydration errors.
 faker.seed(123);
@@ -109,13 +110,43 @@ export const addMockLogEvent = (event: Omit<LogEvent, 'id' | 'timestamp' | 'coun
         ...event
     };
     
-    // Prepend the new event to the central store
-    mockLogEventsStore = [newEvent, ...mockLogEventsStore].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // Ensure we sync with existing client storage first so historical events are preserved
+    if (typeof window !== 'undefined') {
+        const storedEvents = localStorage.getItem('mockLogEvents');
+        if (storedEvents) {
+            try {
+                const parsed: LogEvent[] = JSON.parse(storedEvents);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    mockLogEventsStore = parsed;
+                }
+            } catch (e) {
+                console.error('Error parsing stored events in addMockLogEvent:', e);
+            }
+        }
+    }
+
+    // Prepend the new event to the central store and deduplicate
+    const combined = [newEvent, ...mockLogEventsStore];
+    const seen = new Set<string>();
+    mockLogEventsStore = combined
+      .filter((ev) => {
+        if (!ev.id || seen.has(ev.id)) return false;
+        seen.add(ev.id);
+        return true;
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     
     if (typeof window !== 'undefined') {
         localStorage.setItem('mockLogEvents', JSON.stringify(mockLogEventsStore));
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('cloudsentinel-update'));
+    }
+
+    // Real-time automated response playbook trigger
+    try {
+        evaluateRealtimePlaybookTriggers(newEvent);
+    } catch (err) {
+        console.error('Error evaluating real-time playbook triggers:', err);
     }
     return newEvent;
 }

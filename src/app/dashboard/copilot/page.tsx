@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { subDays } from 'date-fns';
+import { subDays, startOfDay, endOfDay } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,8 +56,8 @@ const SUGGESTED_QUERIES = [
 
 export default function CopilotPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => ({
-    from: subDays(new Date(), 6),
-    to: new Date(),
+    from: startOfDay(subDays(new Date(), 6)),
+    to: endOfDay(new Date()),
   }));
 
   const [briefing, setBriefing] = useState<string>('');

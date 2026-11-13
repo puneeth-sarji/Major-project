@@ -73,7 +73,6 @@ const threatIntelligenceFlow = ai.defineFlow(
     outputSchema: ThreatIntelligenceOutputSchema,
   },
   async input => {
-    const { output } = await fetchThreatIntel(input);
-    return output!;
+    return await fetchThreatIntel(input);
   }
 );

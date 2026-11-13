@@ -24,10 +24,11 @@ export function DateRangePicker({
   date: controlledDate,
   onDateChange,
 }: DateRangePickerProps) {
-  const [internalDate, setInternalDate] = React.useState<DateRange | undefined>({
-    from: subDays(new Date(), 6),
-    to: new Date(),
-  })
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [internalDate, setInternalDate] = React.useState<DateRange | undefined>(() => ({
+    from: startOfDay(subDays(new Date(), 6)),
+    to: endOfDay(new Date()),
+  }));
 
   const date = controlledDate !== undefined ? controlledDate : internalDate;
   const setDate = (newDate: DateRange | undefined) => {
@@ -35,6 +36,37 @@ export function DateRangePicker({
       onDateChange(newDate);
     } else {
       setInternalDate(newDate);
+    }
+  };
+
+  const handlePresetSelect = (presetValue: DateRange) => {
+    setDate(presetValue);
+    setIsOpen(false);
+  };
+
+  const handleCalendarSelect = (newDate: DateRange | undefined) => {
+    if (!newDate) {
+      setDate(undefined);
+      return;
+    }
+
+    if (newDate.from && newDate.to) {
+      let from = startOfDay(newDate.from);
+      let to = endOfDay(newDate.to);
+      if (from > to) {
+        const temp = from;
+        from = startOfDay(newDate.to);
+        to = endOfDay(temp);
+      }
+      setDate({ from, to });
+      setIsOpen(false);
+    } else if (newDate.from) {
+      setDate({
+        from: startOfDay(newDate.from),
+        to: undefined,
+      });
+    } else {
+      setDate(newDate);
     }
   };
 
@@ -71,7 +103,7 @@ export function DateRangePicker({
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
@@ -107,7 +139,7 @@ export function DateRangePicker({
                   variant="ghost"
                   size="sm"
                   className="justify-start text-xs font-normal whitespace-nowrap h-8 px-2"
-                  onClick={() => setDate(preset.getValue())}
+                  onClick={() => handlePresetSelect(preset.getValue())}
                 >
                   {preset.label}
                 </Button>
@@ -118,7 +150,7 @@ export function DateRangePicker({
               mode="range"
               defaultMonth={date?.from}
               selected={date}
-              onSelect={setDate}
+              onSelect={handleCalendarSelect}
               numberOfMonths={2}
             />
           </div>

@@ -47,10 +47,12 @@ export function EventsTable({ dateRange }: EventsTableProps) {
     
     window.addEventListener('storage', updateEvents);
     window.addEventListener('focus', updateEvents);
+    window.addEventListener('cloudsentinel-update', updateEvents);
 
     return () => {
       window.removeEventListener('storage', updateEvents);
       window.removeEventListener('focus', updateEvents);
+      window.removeEventListener('cloudsentinel-update', updateEvents);
     };
   }, [dateRange]);
 

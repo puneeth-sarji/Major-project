@@ -47,9 +47,11 @@ export function KpiCards({ dateRange }: KpiCardsProps) {
       const handleStorageChange = () => updateData();
       window.addEventListener('storage', handleStorageChange);
       window.addEventListener('focus', handleStorageChange);
+      window.addEventListener('cloudsentinel-update', handleStorageChange);
       return () => {
           window.removeEventListener('storage', handleStorageChange);
           window.removeEventListener('focus', handleStorageChange);
+          window.removeEventListener('cloudsentinel-update', handleStorageChange);
       };
   }, [dateRange]);
   

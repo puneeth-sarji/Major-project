@@ -156,8 +156,7 @@ const realTimeAnomalyAlertingFlow = ai.defineFlow(
     outputSchema: RealTimeAnomalyAlertingOutputSchema,
   },
   async input => {
-    const {output} = await sendAlert(input);
-    return output!;
+    return await sendAlert(input);
   }
 );
 

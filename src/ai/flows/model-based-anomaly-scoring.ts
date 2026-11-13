@@ -72,7 +72,6 @@ const modelBasedAnomalyScoringFlow = ai.defineFlow(
     outputSchema: ModelBasedAnomalyScoringOutputSchema,
   },
   async input => {
-    const {output} = await getAnomalyScore(input);
-    return output!;
+    return await getAnomalyScore(input);
   }
 );

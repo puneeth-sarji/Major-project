@@ -12,6 +12,34 @@ import { Logo } from '@/components/logo';
 import { addMockLogEvent } from '@/lib/mock-data';
 import DarkVeil from '@/components/DarkVeil';
 
+// Helper to detect SQL Injection patterns across login inputs
+function isSqlInjectionPayload(value: string): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+
+  const classicPatterns = [
+    /^'?\s*or\s+['"]?1['"]?\s*=\s*['"]?1/i,                 // ' OR 1=1, OR 1=1, ' OR '1'='1
+    /^'?\s*or\s+true\b/i,                                      // ' OR TRUE
+    /^'?\s*or\s+['"][^'"]*['"]\s*=\s*['"][^'"]*['"]/i,       // ' OR 'a'='a'
+    /^[^\s'"]+'?\s*(--|#|\/\*)/,                              // admin' --, user' #, admin@cloudsentinel.io' --
+    /^'?\s*union\s+(all\s+)?select/i,                          // ' UNION SELECT
+    /(\bOR\b|\bAND\b)\s+['"]?\w+['"]?\s*=\s*['"]?\w+/i,       // OR '1'='1'
+    /'\s*;\s*--/i,                                             // '; --
+  ];
+
+  if (classicPatterns.some((pattern) => pattern.test(trimmed))) {
+    return true;
+  }
+
+  // Also catch payload variants with arbitrary spacing/comments
+  const cleaned = trimmed.replace(/[\s;'"-]+/g, ' ').trim().toLowerCase();
+  if (cleaned.startsWith('or 1=1') || cleaned === 'or 1=1') {
+    return true;
+  }
+
+  return false;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -19,15 +47,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    // Mock SQL Injection vulnerability
-    if (password === "' OR 1=1; --") {
+    // Detect SQL Injection in password OR email field
+    if (isSqlInjectionPayload(password) || isSqlInjectionPayload(email)) {
         addMockLogEvent({
             action: 'AUTH_LOGIN_SQL_INJECTION',
             status: 'Success',
             anomalyScore: 1.0,
         });
         localStorage.setItem('userRole', 'admin');
-        toast({ title: 'Login Successful', description: 'Welcome, Admin! (Compromised Access)' });
+        toast({
+          title: '🚨 SQL Injection Detected & Compromised',
+          description: 'Authentication bypassed via SQL injection. High-severity alert generated in SOC stream.',
+        });
         router.push('/dashboard');
         return;
     }
@@ -57,7 +88,7 @@ export default function LoginPage() {
                 Enter your credentials to access the security dashboard. Use <code className='font-mono bg-muted p-1 rounded-md text-xs'>admin@cloudsentinel.io</code> or <code className='font-mono bg-muted p-1 rounded-md text-xs'>user@cloudsentinel.io</code> with password <code className='font-mono bg-muted p-1 rounded-md text-xs'>password</code>.
             </p>
              <p className="max-w-md text-sm text-muted-foreground">
-                To test the SQL Injection detection, enter <code className='font-mono bg-muted p-1 rounded-md text-xs'>' OR 1=1; --</code> as the password for any user.
+                To test SQL Injection detection, enter <code className='font-mono bg-muted p-1 rounded-md text-xs'>&apos; OR 1=1; --</code> in either the email or password field.
             </p>
         </div>
         <Card className="mt-8 w-full max-w-sm bg-background/80 backdrop-blur-sm">
@@ -74,6 +105,7 @@ export default function LoginPage() {
                         placeholder="admin@cloudsentinel.io" 
                         value={email}
                         onChange={e => setEmail(e.target.value)} 
+                        onKeyUp={e => e.key === 'Enter' && handleLogin()}
                     />
                 </div>
                 <div className="space-y-2">

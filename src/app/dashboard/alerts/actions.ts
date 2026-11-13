@@ -4,8 +4,7 @@
 import { getThreatIntelligence } from "@/ai/flows/threat-intelligence-flow";
 import { summarizeAndAdviseOnAlert } from "@/ai/flows/summarize-and-advise-flow";
 import { handleAlertFeedback } from "@/ai/flows/alert-feedback-flow";
-import type { Alert, LogEvent } from "@/types";
-import type { Playbook } from "../playbooks/page";
+import type { Alert } from "@/types";
 import { revalidatePath } from "next/cache";
 import { MOCK_ANALYSIS } from "@/lib/mock-analysis";
 

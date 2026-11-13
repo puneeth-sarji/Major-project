@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { subDays } from "date-fns";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { AnomalyChart } from "@/components/dashboard/anomaly-chart";
 import { EventsTable } from "@/components/dashboard/events-table";
@@ -11,8 +11,8 @@ import { DateRangePicker } from "@/components/date-range-picker";
 
 export default function DashboardPage() {
     const [dateRange, setDateRange] = useState<DateRange | undefined>(() => ({
-        from: subDays(new Date(), 6),
-        to: new Date(),
+        from: startOfDay(subDays(new Date(), 6)),
+        to: endOfDay(new Date()),
     }));
 
     return (

@@ -10,74 +10,47 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { runPlaybookAction } from "../actions";
-import { Loader2, ShieldCheck, ShieldOff, Zap, Plus, Pencil, Trash2, RotateCcw, History, CheckCircle2, Bot } from "lucide-react";
+import {
+  Loader2,
+  ShieldCheck,
+  ShieldOff,
+  Zap,
+  Plus,
+  Pencil,
+  Trash2,
+  RotateCcw,
+  History,
+  CheckCircle2,
+  Bot,
+  Radio,
+  Clock,
+  Sparkles
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import dynamic from 'next/dynamic';
+import {
+  type Playbook,
+  type ExecutionLog,
+  INITIAL_PLAYBOOKS,
+  getStoredPlaybooks,
+  saveStoredPlaybooks,
+  getPlaybookHistory,
+  clearPlaybookHistory,
+  executePlaybookLocally,
+  isAutoMitigationEnabled,
+  setAutoMitigationEnabled,
+} from '@/lib/playbook-store';
+import { TimeAgo } from '@/components/time-ago';
+
 
 const LetterGlitch = dynamic(() => import('@/components/LetterGlitch'), {
   ssr: false,
 });
 
-export type Playbook = {
-  id: string;
-  title: string;
-  description: string;
-  trigger: string;
-  actions: string[];
-  enabled: boolean;
-  lastRun?: string;
-  runCount?: number;
-};
-
-export type ExecutionLog = {
-  id: string;
-  playbookId: string;
-  playbookTitle: string;
-  timestamp: string;
-  status: 'Success' | 'Simulated' | 'Failed';
-  message: string;
-  actions: string[];
-};
-
-export const initialPlaybooks: Playbook[] = [
-  {
-    id: "pb-1",
-    title: "Block Known Malicious IP",
-    description: "Automatically block IP addresses that are identified as known threats by the threat intelligence service.",
-    trigger: "Alert severity is High AND Threat Intel reports Known Threat.",
-    actions: ["Add IP to firewall blocklist.", "Create high-priority ticket in Jira."],
-    enabled: true,
-  },
-  {
-    id: "pb-2",
-    title: "Isolate Suspicious Instance",
-    description: "If an instance shows repeated high-anomaly behavior, isolate it from the network for forensic analysis.",
-    trigger: "More than 5 High-severity alerts for the same server within 1 hour.",
-    actions: ["Apply 'quarantine' security group to instance.", "Snapshot instance EBS volume.", "Alert on-call SRE."],
-    enabled: false,
-  },
-  {
-    id: "pb-3",
-    title: "De-escalate Low-Severity Alerts",
-    description: "Automatically close low-severity alerts that are not associated with any known threat to reduce analyst noise.",
-    trigger: "Alert severity is Low AND Threat Intel reports No Threat.",
-    actions: ["Mark alert as 'resolved'.", "Log event for trend analysis."],
-    enabled: true,
-  },
-  {
-    id: "pb-4",
-    title: "Create Investigation Ticket",
-    description: "Creates a standard investigation ticket in the connected ticketing system for any Medium-severity alert.",
-    trigger: "Alert severity is Medium.",
-    actions: ["Create ticket in Jira.", "Assign to Tier-1 Analyst queue."],
-    enabled: true,
-  },
-];
-
 export default function PlaybooksPage() {
-  const [playbooks, setPlaybooks] = useState<Playbook[]>(initialPlaybooks);
+  const [playbooks, setPlaybooks] = useState<Playbook[]>(INITIAL_PLAYBOOKS);
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([]);
+  const [isAutoEnabled, setIsAutoEnabled] = useState(true);
   const [runningPlaybookId, setRunningPlaybookId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'playbooks' | 'logs'>('playbooks');
   const [editingPlaybook, setEditingPlaybook] = useState<Playbook | null>(null);
@@ -91,53 +64,54 @@ export default function PlaybooksPage() {
 
   const { toast } = useToast();
 
-  // Load from localStorage on mount
+  // Real-time synchronization
   useEffect(() => {
-    try {
-      const storedPb = localStorage.getItem('cloud_sentinel_playbooks');
-      if (storedPb) {
-        setPlaybooks(JSON.parse(storedPb));
-      } else {
-        localStorage.setItem('cloud_sentinel_playbooks', JSON.stringify(initialPlaybooks));
-      }
+    const updateData = () => {
+      setPlaybooks(getStoredPlaybooks());
+      setExecutionLogs(getPlaybookHistory());
+      setIsAutoEnabled(isAutoMitigationEnabled());
+    };
 
-      const storedLogs = localStorage.getItem('cloud_sentinel_playbook_history');
-      if (storedLogs) {
-        setExecutionLogs(JSON.parse(storedLogs));
-      }
-    } catch (e) {
-      console.error('Error loading stored playbooks:', e);
-    }
+    updateData();
+
+    window.addEventListener('storage', updateData);
+    window.addEventListener('focus', updateData);
+    window.addEventListener('cloudsentinel-playbook-update', updateData);
+    window.addEventListener('cloudsentinel-update', updateData);
+
+    const interval = setInterval(updateData, 2000);
+
+    return () => {
+      window.removeEventListener('storage', updateData);
+      window.removeEventListener('focus', updateData);
+      window.removeEventListener('cloudsentinel-playbook-update', updateData);
+      window.removeEventListener('cloudsentinel-update', updateData);
+      clearInterval(interval);
+    };
   }, []);
 
-  const savePlaybooks = (updated: Playbook[]) => {
-    setPlaybooks(updated);
-    try {
-      localStorage.setItem('cloud_sentinel_playbooks', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error saving playbooks:', e);
-    }
-  };
-
-  const addExecutionLog = (log: ExecutionLog) => {
-    const updated = [log, ...executionLogs].slice(0, 50);
-    setExecutionLogs(updated);
-    try {
-      localStorage.setItem('cloud_sentinel_playbook_history', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error saving logs:', e);
-    }
+  const handleToggleAutoMitigation = (enabled: boolean) => {
+    setIsAutoEnabled(enabled);
+    setAutoMitigationEnabled(enabled);
+    toast({
+      title: enabled ? "⚡ Real-Time Auto-Mitigation Active" : "Auto-Mitigation Paused",
+      description: enabled
+        ? "Enabled playbooks will execute automatically in real time whenever anomalous events or threats occur."
+        : "Playbooks will now only execute upon manual analyst trigger.",
+    });
   };
 
   const handleToggle = (playbookId: string) => {
-    const target = playbooks.find(pb => pb.id === playbookId);
+    const current = getStoredPlaybooks();
+    const target = current.find(pb => pb.id === playbookId);
     const newStatus = target ? !target.enabled : false;
-    const updated = playbooks.map(pb => pb.id === playbookId ? { ...pb, enabled: newStatus } : pb);
-    savePlaybooks(updated);
+    const updated = current.map(pb => pb.id === playbookId ? { ...pb, enabled: newStatus } : pb);
+    saveStoredPlaybooks(updated);
+    setPlaybooks(updated);
 
     toast({
       title: newStatus ? "Playbook Activated" : "Playbook Deactivated",
-      description: `"${target?.title}" is now ${newStatus ? 'active' : 'inactive'}. Changes saved.`,
+      description: `"${target?.title}" is now ${newStatus ? 'active' : 'inactive'}. Changes applied in real time.`,
     });
   };
 
@@ -168,15 +142,18 @@ export default function PlaybooksPage() {
       .map(a => a.trim())
       .filter(a => a.length > 0);
 
+    const current = getStoredPlaybooks();
+
     if (editingPlaybook) {
-      const updated = playbooks.map(pb => pb.id === editingPlaybook.id ? {
+      const updated = current.map(pb => pb.id === editingPlaybook.id ? {
         ...pb,
         title: formTitle.trim(),
         description: formDesc.trim(),
         trigger: formTrigger.trim(),
         actions: actionList.length > 0 ? actionList : ['Perform automated response.'],
       } : pb);
-      savePlaybooks(updated);
+      saveStoredPlaybooks(updated);
+      setPlaybooks(updated);
       toast({
         title: "Playbook Updated",
         description: `Changes to "${formTitle}" have been saved and applied.`,
@@ -191,10 +168,12 @@ export default function PlaybooksPage() {
         enabled: true,
         runCount: 0,
       };
-      savePlaybooks([...playbooks, newPb]);
+      const updated = [...current, newPb];
+      saveStoredPlaybooks(updated);
+      setPlaybooks(updated);
       toast({
         title: "Playbook Created",
-        description: `New playbook "${formTitle}" is active.`,
+        description: `New playbook "${formTitle}" is now live.`,
       });
     }
 
@@ -202,9 +181,11 @@ export default function PlaybooksPage() {
   };
 
   const handleDelete = (playbookId: string) => {
-    const target = playbooks.find(pb => pb.id === playbookId);
-    const updated = playbooks.filter(pb => pb.id !== playbookId);
-    savePlaybooks(updated);
+    const current = getStoredPlaybooks();
+    const target = current.find(pb => pb.id === playbookId);
+    const updated = current.filter(pb => pb.id !== playbookId);
+    saveStoredPlaybooks(updated);
+    setPlaybooks(updated);
     toast({
       title: "Playbook Removed",
       description: `"${target?.title}" has been deleted.`,
@@ -212,59 +193,45 @@ export default function PlaybooksPage() {
   };
 
   const handleResetDefaults = () => {
-    savePlaybooks(initialPlaybooks);
+    saveStoredPlaybooks(INITIAL_PLAYBOOKS);
+    setPlaybooks(INITIAL_PLAYBOOKS);
     toast({
       title: "Defaults Restored",
       description: "Playbooks have been reset to factory defaults.",
     });
   };
 
+  const handleClearHistory = () => {
+    clearPlaybookHistory();
+    setExecutionLogs([]);
+    toast({
+      title: "Audit Trail Cleared",
+      description: "Playbook execution history has been cleared.",
+    });
+  };
+
   const handleRunTest = async (playbook: Playbook) => {
     setRunningPlaybookId(playbook.id);
     try {
-      const result = await runPlaybookAction(playbook.id, playbook.title);
-      const timestamp = new Date().toISOString();
+      const result = executePlaybookLocally(playbook.id, {
+        mode: 'Manual',
+        triggerEvent: 'Analyst Test Run Trigger',
+      });
 
-      if (result.success) {
-        const updated = playbooks.map(pb => pb.id === playbook.id ? {
-          ...pb,
-          lastRun: timestamp,
-          runCount: (pb.runCount || 0) + 1,
-        } : pb);
-        savePlaybooks(updated);
+      // Synchronize state immediately
+      setPlaybooks(getStoredPlaybooks());
+      setExecutionLogs(getPlaybookHistory());
 
-        addExecutionLog({
-          id: `log-${Date.now()}`,
-          playbookId: playbook.id,
-          playbookTitle: playbook.title,
-          timestamp,
-          status: 'Success',
-          message: result.message || 'Workflow executed successfully.',
-          actions: playbook.actions,
-        });
-
-        toast({
-          title: "Playbook Execution Successful",
-          description: result.message,
-        });
-      } else {
-        const errorMsg = 'error' in result ? (result.error as string) : 'Execution encountered an error.';
-        addExecutionLog({
-          id: `log-${Date.now()}`,
-          playbookId: playbook.id,
-          playbookTitle: playbook.title,
-          timestamp,
-          status: 'Failed',
-          message: errorMsg,
-          actions: playbook.actions,
-        });
-
-        toast({
-          variant: "destructive",
-          title: "Playbook Execution Failed",
-          description: errorMsg,
-        });
-      }
+      toast({
+        title: "⚡ Playbook Executed in Real Time",
+        description: result.log.message,
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Execution Error",
+        description: err instanceof Error ? err.message : 'Unknown execution failure',
+      });
     } finally {
       setRunningPlaybookId(null);
     }
@@ -293,11 +260,27 @@ export default function PlaybooksPage() {
               <h1 className="text-3xl font-bold tracking-tight">Automated Response Playbooks</h1>
             </div>
             <p className="text-muted-foreground text-sm">
-              Define, configure, and test real-time automated workflows to instantly mitigate security threats.
+              Define, configure, and execute real-time automated workflows to instantly mitigate security threats.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Real-Time Auto-Mitigation Engine Toggle */}
+            <div className="flex items-center gap-2.5 bg-background/85 backdrop-blur-md border px-3 py-1.5 rounded-lg shadow-sm">
+              <Radio className={`h-4 w-4 ${isAutoEnabled ? 'text-emerald-500 animate-pulse' : 'text-muted-foreground'}`} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold">Real-Time Auto Mitigation</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isAutoEnabled ? 'Live auto-triggering on telemetry' : 'Manual triggers only'}
+                </span>
+              </div>
+              <Switch
+                checked={isAutoEnabled}
+                onCheckedChange={handleToggleAutoMitigation}
+                aria-label="Toggle Real-Time Auto Mitigation"
+              />
+            </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -341,12 +324,24 @@ export default function PlaybooksPage() {
               <History className="h-3.5 w-3.5" />
               Execution Audit Trail
               {executionLogs.length > 0 && (
-                <Badge variant="outline" className="px-1.5 py-0 text-xs">
+                <Badge variant="outline" className="px-1.5 py-0 text-xs font-semibold text-primary">
                   {executionLogs.length}
                 </Badge>
               )}
             </Button>
           </div>
+
+          {activeTab === 'logs' && executionLogs.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearHistory}
+              className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear Audit History
+            </Button>
+          )}
         </div>
 
         {/* Tab 1: Playbooks Cards Grid */}
@@ -405,8 +400,11 @@ export default function PlaybooksPage() {
 
                   {playbook.lastRun && (
                     <div className="pt-2 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border/50">
-                      <span>Last run: {new Date(playbook.lastRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span>Total runs: {playbook.runCount || 1}</span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-primary" />
+                        Last run: {new Date(playbook.lastRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <span className="font-semibold">Runs: {playbook.runCount || 1}</span>
                     </div>
                   )}
                 </CardContent>
@@ -442,7 +440,7 @@ export default function PlaybooksPage() {
                     variant={playbook.enabled ? "default" : "secondary"}
                     disabled={runningPlaybookId === playbook.id}
                     onClick={() => handleRunTest(playbook)}
-                    className="h-8 gap-1.5 text-xs"
+                    className="h-8 gap-1.5 text-xs font-medium shadow-sm"
                   >
                     {runningPlaybookId === playbook.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -457,40 +455,62 @@ export default function PlaybooksPage() {
           </div>
         )}
 
-        {/* Tab 2: Execution Audit Trail */}
+        {/* Tab 2: Execution Audit Trail (History) */}
         {activeTab === 'logs' && (
           <div className="space-y-4">
             {executionLogs.length === 0 ? (
               <Card className="bg-background/85 backdrop-blur-md p-8 text-center border">
                 <History className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-50" />
-                <h3 className="font-semibold text-lg">No Executions Recorded Yet</h3>
+                <h3 className="font-semibold text-lg">No Playbook Executions Recorded</h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-                  Click <strong>Test Run</strong> on any automated playbook card to simulate and test real-time security actions.
+                  Click <strong>Test Run</strong> on any playbook card, or trigger security threats (like SQL Injection) with <strong>Real-Time Auto Mitigation</strong> enabled.
                 </p>
               </Card>
             ) : (
               <div className="space-y-3">
                 {executionLogs.map((log) => (
-                  <Card key={log.id} className="bg-background/85 backdrop-blur-md border shadow-sm">
+                  <Card key={log.id} className="bg-background/85 backdrop-blur-md border shadow-sm transition-all hover:border-primary/50">
                     <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                         <CardTitle className="text-sm font-semibold">{log.playbookTitle}</CardTitle>
-                        <Badge variant="outline" className="text-[10px] uppercase">
-                          {log.status}
+                        <Badge
+                          variant={log.executionMode === 'Automated (Real-Time)' ? 'default' : 'outline'}
+                          className="text-[10px] uppercase font-semibold gap-1"
+                        >
+                          {log.executionMode === 'Automated (Real-Time)' ? (
+                            <>
+                              <Zap className="h-2.5 w-2.5 text-amber-300" />
+                              Auto Real-Time
+                            </>
+                          ) : (
+                            'Manual Run'
+                          )}
                         </Badge>
+                        {log.triggerEvent && (
+                          <Badge variant="secondary" className="text-[10px] font-mono">
+                            {log.triggerEvent}
+                          </Badge>
+                        )}
+                        {log.sourceIp && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            Target IP: <code className="text-primary font-semibold">{log.sourceIp}</code>
+                          </span>
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </span>
+                      <div className="text-xs text-muted-foreground font-mono text-right shrink-0">
+                        <TimeAgo date={log.timestamp} />
+                      </div>
                     </CardHeader>
-                    <CardContent className="py-2 px-4 space-y-2 border-t text-xs">
-                      <p className="font-medium text-foreground">{log.message}</p>
+                    <CardContent className="py-2.5 px-4 space-y-2 border-t text-xs">
+                      <p className="font-medium text-foreground bg-muted/30 p-2 rounded border font-sans">
+                        {log.message}
+                      </p>
                       <div>
                         <span className="text-muted-foreground font-semibold">Actions Dispatched:</span>
-                        <ul className="list-disc list-inside mt-0.5 space-y-0.5 text-muted-foreground">
+                        <ul className="list-disc list-inside mt-1 space-y-0.5 text-muted-foreground">
                           {log.actions.map((act, idx) => (
-                            <li key={idx}>{act}</li>
+                            <li key={idx} className="text-foreground/80">{act}</li>
                           ))}
                         </ul>
                       </div>

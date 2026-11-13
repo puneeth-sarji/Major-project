@@ -85,10 +85,12 @@ export default function UserActivityPage() {
 
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('cloudsentinel-update', handleStorageUpdate);
 
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('cloudsentinel-update', handleStorageUpdate);
     };
   }, [router, toast]);
 
@@ -112,6 +114,7 @@ export default function UserActivityPage() {
     return () => {
       if (interval) clearInterval(interval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTrafficSimulating]);
 
   const handleAction = (

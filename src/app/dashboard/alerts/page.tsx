@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BellRing, Shield, AlertTriangle, Info, Search, Sparkles, Loader2 } from 'lucide-react';
+import { BellRing, Shield, AlertTriangle, Info, Search, Sparkles, Loader2, Zap, CheckCircle2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { TimeAgo } from '@/components/time-ago';
 import { getMockAlerts, getMockLogEvents } from '@/lib/mock-data';
 import { getIncidentAnalysis } from './actions';
+import { executePlaybookLocally } from '@/lib/playbook-store';
+import { useToast } from '@/hooks/use-toast';
 import type { Alert } from '@/types';
 import ReactMarkdown from 'react-markdown';
 
@@ -27,6 +29,40 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [executingPlaybook, setExecutingPlaybook] = useState(false);
+  const { toast } = useToast();
+
+  const handleExecutePlaybook = (alert: Alert) => {
+    setExecutingPlaybook(true);
+    let targetPb = 'pb-1';
+    if (alert.description.includes('Privilege escalation') || alert.description.includes('logging')) {
+      targetPb = 'pb-2';
+    } else if (alert.severity === 'Low') {
+      targetPb = 'pb-3';
+    } else if (alert.severity === 'Medium') {
+      targetPb = 'pb-4';
+    }
+
+    try {
+      const result = executePlaybookLocally(targetPb, {
+        sourceIp: alert.sourceIp,
+        triggerEvent: alert.description,
+        mode: 'Manual',
+      });
+      toast({
+        title: "⚡ Playbook Executed in Real Time",
+        description: `${result.log.playbookTitle} dispatched. Actions logged to Playbook History.`,
+      });
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Execution Failed',
+        description: 'Failed to run automated playbook.',
+      });
+    } finally {
+      setExecutingPlaybook(false);
+    }
+  };
 
   const loadAlerts = () => {
     const allEvents = getMockLogEvents(0);
@@ -258,6 +294,23 @@ export default function AlertsPage() {
                             <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed">
                               {aiAnalysis && <ReactMarkdown>{aiAnalysis}</ReactMarkdown>}
                             </div>
+
+                            {selectedAlert && (
+                              <div className="pt-3 border-t flex items-center justify-between gap-3">
+                                <p className="text-xs text-muted-foreground">
+                                  Trigger recommended incident mitigation directly.
+                                </p>
+                                <Button
+                                  size="sm"
+                                  className="gap-2 text-xs shadow-sm font-medium"
+                                  onClick={() => handleExecutePlaybook(selectedAlert)}
+                                  disabled={executingPlaybook}
+                                >
+                                  <Zap className="h-3.5 w-3.5 text-amber-300" />
+                                  {executingPlaybook ? 'Executing Workflow...' : 'Execute Recommended Playbook'}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </DialogContent>

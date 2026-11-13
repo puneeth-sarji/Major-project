@@ -51,9 +51,11 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
 
     window.addEventListener('storage', updateEvents);
     window.addEventListener('focus', updateEvents);
+    window.addEventListener('cloudsentinel-update', updateEvents);
     return () => {
       window.removeEventListener('storage', updateEvents);
       window.removeEventListener('focus', updateEvents);
+      window.removeEventListener('cloudsentinel-update', updateEvents);
     };
   }, []);
 
@@ -62,7 +64,8 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
     const dailyScores: Record<string, number[]> = {};
 
     filteredEvents.forEach(event => {
-      const dateStr = new Date(event.timestamp).toISOString().split('T')[0];
+      // Use local calendar date formatting rather than toISOString() to avoid timezone day shifts
+      const dateStr = format(new Date(event.timestamp), 'yyyy-MM-dd');
       if (!dailyScores[dateStr]) {
         dailyScores[dateStr] = [];
       }
@@ -76,11 +79,14 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
       
       if (curr <= end) {
         while (curr <= end) {
-          const dateStr = curr.toISOString().split('T')[0];
+          const dateStr = format(curr, 'yyyy-MM-dd');
           const scores = dailyScores[dateStr];
+          const rawScore = scores && scores.length > 0 ? Math.max(...scores) : 0;
+          // Clamp score strictly between 0.0 and 1.0 to prevent any negative values
+          const score = Math.max(0, Math.min(1, parseFloat(rawScore.toFixed(2))));
           days.push({
             date: dateStr,
-            score: scores && scores.length > 0 ? Math.max(...scores) : 0,
+            score,
           });
           curr = addDays(curr, 1);
         }
@@ -89,16 +95,24 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
     }
 
     return Object.entries(dailyScores)
-      .map(([date, scores]) => ({
-        date,
-        score: Math.max(...scores),
-      }))
+      .map(([date, scores]) => {
+        const rawScore = Math.max(...scores);
+        return {
+          date,
+          score: Math.max(0, Math.min(1, parseFloat(rawScore.toFixed(2)))),
+        };
+      })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [events, dateRange]);
 
   const dateDescription = useMemo(() => {
     if (dateRange?.from && dateRange?.to) {
-      return `Showing max daily anomaly scores from ${format(dateRange.from, "LLL dd, y")} to ${format(dateRange.to, "LLL dd, y")}.`;
+      const fromFormatted = format(dateRange.from, "LLL dd, y");
+      const toFormatted = format(dateRange.to, "LLL dd, y");
+      if (fromFormatted === toFormatted) {
+        return `Showing max daily anomaly scores for ${fromFormatted}.`;
+      }
+      return `Showing max daily anomaly scores from ${fromFormatted} to ${toFormatted}.`;
     }
     if (dateRange?.from) {
       return `Showing max daily anomaly scores for ${format(dateRange.from, "LLL dd, y")}.`;
@@ -120,22 +134,27 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
             accessibilityLayer
             data={chartData}
             margin={{
+              top: 10,
               left: 12,
               right: 12,
+              bottom: 0,
             }}
           >
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               tickFormatter={(value) => {
-                const date = new Date(value)
+                if (!value || typeof value !== 'string') return '';
+                const [y, m, d] = value.split('-').map(Number);
+                if (isNaN(y) || isNaN(m) || isNaN(d)) return value;
+                const date = new Date(y, m - 1, d);
                 return date.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
-                })
+                });
               }}
             />
              <YAxis
@@ -143,10 +162,29 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
+                ticks={[0, 0.25, 0.5, 0.75, 1.0]}
+                tickFormatter={(val) => val.toFixed(2)}
+                allowDataOverflow={false}
              />
             <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent indicator="dot" />}
+              cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 4" }}
+              content={
+                <ChartTooltipContent
+                  indicator="dot"
+                  labelFormatter={(label) => {
+                    if (!label || typeof label !== 'string') return label;
+                    const [y, m, d] = label.split('-').map(Number);
+                    if (isNaN(y) || isNaN(m) || isNaN(d)) return label;
+                    const date = new Date(y, m - 1, d);
+                    return date.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                  }}
+                />
+              }
             />
             <defs>
                 <linearGradient id="fillScore" x1="0" y1="0" x2="0" y2="1">
@@ -158,16 +196,18 @@ export function AnomalyChart({ dateRange }: AnomalyChartProps) {
                     <stop
                     offset="95%"
                     stopColor="var(--color-score)"
-                    stopOpacity={0.1}
+                    stopOpacity={0.05}
                     />
                 </linearGradient>
              </defs>
             <Area
               dataKey="score"
-              type="natural"
+              type="monotone"
               fill="url(#fillScore)"
               stroke="var(--color-score)"
-              stackId="a"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "var(--color-score)", strokeWidth: 1 }}
+              activeDot={{ r: 5, strokeWidth: 2 }}
             />
           </AreaChart>
         </ChartContainer>

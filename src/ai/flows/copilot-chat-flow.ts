@@ -47,7 +47,7 @@ function generateIntelligentChatFallback(input: CopilotChatInput): string {
     return `### 🌐 IP Threat Analysis\n\nExternal IPs triggering anomalies are being monitored. We recommend cross-referencing against Threat Intelligence feeds and applying automated firewall isolation.`;
   }
 
-  if (query.includes('sql') || query.includes('injection') || query.includes('auth_login_sql_injection')) {
+  if (query.includes('sql') || query.includes('sqli') || query.includes('injection') || query.includes('auth_login_sql_injection')) {
     return `### 💉 SQL Injection Attack Analysis\n\n**Pattern Identified:** \`AUTH_LOGIN_SQL_INJECTION\` attempts observed against web application endpoints.\n\n**Risk Level:** **High (Critical)**\n- **Objective:** Bypassing authentication layers and unauthorized database enumeration.\n- **Mitigation:**\n  1. Review parameterized SQL queries and ORM validation.\n  2. Enable WAF rule sets against SQLi patterns.\n  3. Verify whether anomalous sessions gained session tokens and revoke compromised credentials.`;
   }
 
